@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InspireWorks IVR · Outbound Call</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #f4f6fa; color: #182230; }
+    main { max-width: 760px; margin: 7vh auto; padding: 0 20px; }
+    .panel { background: white; border: 1px solid #dce2eb; border-radius: 16px; padding: 28px; box-shadow: 0 8px 28px #1822300b; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: #52637a; text-transform: uppercase; }
+    h1 { margin: 10px 0; font-size: clamp(28px, 5vw, 38px); }
+    p { line-height: 1.6; color: #526071; }
+    .state { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #fff3d6; color: #805500; font-size: 13px; font-weight: 700; }
+    .state.ready { background: #e4f7ec; color: #17683a; }
+    code { background: #eef1f6; padding: 2px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    ul { padding-left: 20px; line-height: 1.9; color: #526071; }
+    label { display: block; margin: 16px 0 6px; font-weight: 650; font-size: 14px; }
+    input { box-sizing: border-box; width: 100%; max-width: 100%; border: 1px solid #ccd5e0; padding: 12px; border-radius: 9px; font: inherit; }
+    button { border: 0; margin-top: 18px; border-radius: 9px; padding: 12px 18px; background: #174ea6; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .foot { font-size: 13px; margin-top: 20px; }
+    #result { margin-top: 16px; padding: 12px; border-radius: 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #result:empty { display: none; }
+    #result.error { background: #fff0f0; color: #8b1d1d; }
+    #result.success { background: #e4f7ec; color: #17683a; }
+    .warning { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <div class="eyebrow">Plivo FDE Technical Assignment</div>
+      <h1>InspireWorks IVR</h1>
+      <p>Outbound calling, OTP authentication, English/Spanish selection, audio playback, and live associate transfer.</p>
+      {% if configured %}
+        <div class="state ready">● Required configuration is present</div>
+      {% else %}
+        <div class="state">● Configuration needs attention</div>
+        <p>Set these values in your local <code>.env</code> file:</p>
+        <ul>{% for name in missing %}<li><code>{{ name }}</code></li>{% endfor %}</ul>
+      {% endif %}
+
+      <form id="call-form">
+        <label for="to">Destination phone number</label>
+        <input id="to" name="to" type="tel" autocomplete="tel" placeholder="+919876543210" value="{{ allowed_destination }}" required>
+        <label for="pin">Call-trigger PIN</label>
+        <input id="pin" name="pin" type="password" autocomplete="current-password" required>
+        <button id="submit" type="submit">Call Me</button>
+      </form>
+      <div id="result" role="status" aria-live="polite"></div>
+      <p class="warning">For safety, this demo is restricted to the single allow-listed destination in your local configuration. Never commit your <code>.env</code> file or expose this service without access controls.</p>
+      <p class="foot">Health endpoint: <code>/health</code> · Answer webhook: <code>/voice/answer</code> · OTP is checked before both IVR menu levels.</p>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById('call-form');
+    const submit = document.getElementById('submit');
+    const result = document.getElementById('result');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      result.textContent = '';
+      result.className = '';
+      submit.disabled = true;
+      submit.textContent = 'Requesting call…';
+      try {
+        const response = await fetch('/api/calls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: document.getElementById('to').value.trim(),
+            trigger_pin: document.getElementById('pin').value
+          })
+        });
+        const body = await response.json();
+        if (!response.ok || !body.ok) throw new Error(body.error || 'The call request failed.');
+        result.className = 'success';
+        result.textContent = body.message + (body.request_uuid ? '\nRequest UUID: ' + body.request_uuid : '');
+      } catch (error) {
+        result.className = 'error';
+        result.textContent = error.message || 'Could not contact the application.';
+      } finally {
+        submit.disabled = false;
+        submit.textContent = 'Call Me';
+      }
+    });
+  </script>
+</body>
+</html>
